@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, FileText, Sparkles, Video, Clapperboard, CheckCircle2, KeyRound, Music, Play, Download, Copy, DollarSign, Search, Mic, Star, Edit2 } from "lucide-react";
+import { Loader2, FileText, Sparkles, Video, Clapperboard, CheckCircle2, KeyRound, Music, Play, Download, Copy, DollarSign, Search, Mic, Star, Edit2, Wand2, X, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type Topic = {
@@ -67,6 +67,11 @@ export default function MainAgent() {
     const [searchingPexels, setSearchingPexels] = useState<Record<number, boolean>>({});
     const [searchingUnsplash, setSearchingUnsplash] = useState<Record<number, boolean>>({});
     const [fullAudioUrl, setFullAudioUrl] = useState<string | null>(null);
+
+    // AI Rewrite state
+    const [rewriteOpenIdx, setRewriteOpenIdx] = useState<number | null>(null);
+    const [rewritePrompt, setRewritePrompt] = useState("");
+    const [rewritingIdx, setRewritingIdx] = useState<number | null>(null);
 
     // Full list of 30 Gemini 2.5 TTS Voices
     const TTS_VOICES = [
@@ -501,6 +506,43 @@ export default function MainAgent() {
         }
     };
 
+    const handleRewriteSection = async (idx: number) => {
+        if (!script || !rewritePrompt.trim() || !geminiKey.trim()) return;
+        setRewritingIdx(idx);
+        try {
+            const res = await fetch('/api/rewrite-section', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    originalText: script.sections[idx].audio,
+                    userPrompt: rewritePrompt,
+                    apiKey: geminiKey,
+                    model: aiModel,
+                }),
+            });
+            const data = await res.json();
+            if (data.rewrittenText) {
+                const newScript = { ...script };
+                newScript.sections[idx].audio = data.rewrittenText;
+                setScript(newScript);
+                setTtsApproved(false);
+                setPreviewAudioUrl(null);
+                setFullAudioUrl(null);
+                setRewriteOpenIdx(null);
+                setRewritePrompt("");
+                const cost = estimateCost('script');
+                setTotalCost(prev => prev + cost);
+            } else {
+                throw new Error(data.error || 'AI không trả về kết quả');
+            }
+        } catch (err: any) {
+            console.error(err);
+            alert('Lỗi viết lại: ' + err.message);
+        } finally {
+            setRewritingIdx(null);
+        }
+    };
+
     return (
         <div className="space-y-8 relative">
             {/* 0. API Keys Setup */}
@@ -915,7 +957,91 @@ export default function MainAgent() {
                                 {script.sections.map((section, idx) => (
                                     <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-obsidian-900 rounded-xl p-4 border border-gray-800/50">
                                         <div className="col-span-5 space-y-2">
-                                            <span className="md:hidden text-xs font-medium text-gray-500 uppercase">Âm thanh</span>
+                                            <div className="flex items-center justify-between">
+                                                <span className="md:hidden text-xs font-medium text-gray-500 uppercase">Âm thanh</span>
+                                                <button
+                                                    onClick={() => {
+                                                        if (rewriteOpenIdx === idx) {
+                                                            setRewriteOpenIdx(null);
+                                                            setRewritePrompt("");
+                                                        } else {
+                                                            setRewriteOpenIdx(idx);
+                                                            setRewritePrompt("");
+                                                        }
+                                                    }}
+                                                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-all ${rewriteOpenIdx === idx
+                                                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                                                            : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 hover:border-purple-500/40'
+                                                        }`}
+                                                    title="Viết lại bằng AI"
+                                                >
+                                                    <Wand2 className="w-3.5 h-3.5" />
+                                                    AI Viết lại
+                                                </button>
+                                            </div>
+
+                                            {/* AI Rewrite Prompt Input */}
+                                            <AnimatePresence>
+                                                {rewriteOpenIdx === idx && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, height: 0 }}
+                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                        exit={{ opacity: 0, height: 0 }}
+                                                        className="overflow-hidden"
+                                                    >
+                                                        <div className="bg-purple-900/15 border border-purple-500/30 rounded-lg p-3 space-y-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <Wand2 className="w-4 h-4 text-purple-400 shrink-0" />
+                                                                <span className="text-xs font-semibold text-purple-300">Yêu cầu viết lại đoạn này:</span>
+                                                                <button
+                                                                    onClick={() => { setRewriteOpenIdx(null); setRewritePrompt(""); }}
+                                                                    className="ml-auto p-1 hover:bg-gray-800 rounded text-gray-500 hover:text-gray-300 transition-colors"
+                                                                >
+                                                                    <X className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={rewritePrompt}
+                                                                    onChange={(e) => setRewritePrompt(e.target.value)}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter' && rewritePrompt.trim()) {
+                                                                            handleRewriteSection(idx);
+                                                                        }
+                                                                    }}
+                                                                    placeholder="VD: Viết ngắn lại, giọng buồn hơn, thêm câu hỏi tu từ..."
+                                                                    className="flex-1 bg-obsidian-950 border border-purple-900/50 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                                                                    autoFocus
+                                                                    disabled={rewritingIdx === idx}
+                                                                />
+                                                                <button
+                                                                    onClick={() => handleRewriteSection(idx)}
+                                                                    disabled={!rewritePrompt.trim() || rewritingIdx === idx}
+                                                                    className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-900/30 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                                                                >
+                                                                    {rewritingIdx === idx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                                                    {rewritingIdx === idx ? 'Đang viết...' : 'Gửi'}
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                {['Viết ngắn gọn hơn', 'Thêm cảm xúc sâu lắng', 'Viết lại giọng thuyết pháp', 'Thêm câu hỏi tu từ', 'Dùng ẩn dụ thiên nhiên'].map((suggestion) => (
+                                                                    <button
+                                                                        key={suggestion}
+                                                                        onClick={() => {
+                                                                            setRewritePrompt(suggestion);
+                                                                        }}
+                                                                        className="px-2 py-1 bg-obsidian-950 border border-gray-800 hover:border-purple-500/40 rounded text-[10px] text-gray-400 hover:text-purple-300 transition-all"
+                                                                    >
+                                                                        {suggestion}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+
                                             <textarea
                                                 className="w-full bg-obsidian-950 border border-gray-800 rounded-lg p-3 text-gray-200 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-y min-h-[120px]"
                                                 value={section.audio}
