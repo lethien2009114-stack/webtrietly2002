@@ -446,8 +446,15 @@ export default function MainAgent() {
             });
 
             if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.error || "Lỗi tạo video");
+                const errText = await res.text();
+                let errorMsg = 'Lỗi tạo video';
+                try {
+                    const errData = JSON.parse(errText);
+                    if (errData.error) errorMsg = errData.error;
+                } catch {
+                    errorMsg = errText || errorMsg;
+                }
+                throw new Error(errorMsg);
             }
 
             // The response will be the video file itself
@@ -970,8 +977,8 @@ export default function MainAgent() {
                                                         }
                                                     }}
                                                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-all ${rewriteOpenIdx === idx
-                                                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                                                            : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 hover:border-purple-500/40'
+                                                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                                                        : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 hover:border-purple-500/40'
                                                         }`}
                                                     title="Viết lại bằng AI"
                                                 >
