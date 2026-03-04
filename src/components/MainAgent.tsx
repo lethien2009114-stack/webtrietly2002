@@ -916,7 +916,18 @@ export default function MainAgent() {
                                     <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-obsidian-900 rounded-xl p-4 border border-gray-800/50">
                                         <div className="col-span-5 space-y-2">
                                             <span className="md:hidden text-xs font-medium text-gray-500 uppercase">Âm thanh</span>
-                                            <p className="text-gray-200 text-base leading-relaxed whitespace-pre-wrap">{section.audio}</p>
+                                            <textarea
+                                                className="w-full bg-obsidian-950 border border-gray-800 rounded-lg p-3 text-gray-200 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-y min-h-[120px]"
+                                                value={section.audio}
+                                                onChange={(e) => {
+                                                    const newScript = { ...script };
+                                                    newScript.sections[idx].audio = e.target.value;
+                                                    setScript(newScript);
+                                                    setTtsApproved(false);
+                                                    setPreviewAudioUrl(null);
+                                                    setFullAudioUrl(null);
+                                                }}
+                                            />
                                         </div>
 
                                         <div className="col-span-4 space-y-2">
